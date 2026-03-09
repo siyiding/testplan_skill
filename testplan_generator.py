@@ -9,24 +9,61 @@ import argparse
 import json
 import re
 import os
+import csv
 from datetime import datetime
 from pathlib import Path
 
 
+class CSVTestCaseParser:
+    """CSV测试用例解析器"""
+    
+    def __init__(self, csv_path):
+        self.csv_path = csv_path
+    
+    def parse(self):
+        """解析CSV文件中的测试用例"""
+        cases = []
+        
+        try:
+            with open(self.csv_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    case = {
+                        'id': row.get('ID', '').strip(),
+                        'title': row.get('标题', '').strip(),
+                        'module': row.get('模块', '').strip(),
+                        'type': row.get('类型', '').strip(),
+                        'precondition': row.get('前置条件', '').strip(),
+                        'steps': row.get('步骤', '').strip(),
+                        'expected': row.get('预期结果', '').strip(),
+                        'priority': row.get('优先级', '').strip(),
+                        'status': row.get('状态', '').strip(),
+                        'content': f"{row.get('标题', '')} - {row.get('类型', '')}"
+                    }
+                    if case['id']:  # 只添加有ID的用例
+                        cases.append(case)
+        except Exception as e:
+            print(f"  ⚠ 警告: 解析CSV文件 {self.csv_path} 失败: {e}")
+        
+        return cases
+
+
 class TestPlanParser:
-    """测试计划解析器"""
+    """测试计划解析器（支持Markdown文件或目录）"""
     
     def __init__(self, file_path):
-        self.file_path = file_path
-        self.content = self._read_file()
+        self.file_path = Path(file_path)
+        self.content = self._read_file() if self.file_path.is_file() else ""
         
     def _read_file(self):
         """读取文件内容"""
-        with open(self.file_path, 'r', encoding='utf-8') as f:
-            return f.read()
+        if self.file_path.is_file():
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        return ""
     
     def parse(self):
-        """解析测试计划"""
+        """解析测试计划（支持目录或单文件）"""
         plan = {
             'version': self._extract_version(),
             'test_scope': self._extract_test_scope(),
@@ -34,7 +71,47 @@ class TestPlanParser:
             'test_cases': self._extract_test_cases(),
             'raw_content': self.content
         }
+        
+        # 如果输入是目录，扫描CSV文件
+        if self.file_path.is_dir():
+            csv_cases = self._parse_csv_files()
+            plan['test_cases'].extend(csv_cases)
+            print(f"  ✓ 从CSV文件加载: {len(csv_cases)} 个用例")
+        # 如果输入是文件，检查同目录下的CSV文件
+        elif self.file_path.is_file():
+            csv_cases = self._parse_csv_files_in_same_dir()
+            if csv_cases:
+                plan['test_cases'].extend(csv_cases)
+                print(f"  ✓ 从CSV文件加载: {len(csv_cases)} 个用例")
+        
         return plan
+    
+    def _parse_csv_files(self):
+        """解析目录下所有CSV测试用例文件"""
+        cases = []
+        csv_files = sorted(self.file_path.glob('testcase*.csv'))
+        
+        for csv_file in csv_files:
+            print(f"  → 解析CSV: {csv_file.name}")
+            parser = CSVTestCaseParser(csv_file)
+            csv_cases = parser.parse()
+            cases.extend(csv_cases)
+        
+        return cases
+    
+    def _parse_csv_files_in_same_dir(self):
+        """解析与测试计划文件同目录下的CSV文件"""
+        cases = []
+        parent_dir = self.file_path.parent
+        csv_files = sorted(parent_dir.glob('testcase*.csv'))
+        
+        for csv_file in csv_files:
+            print(f"  → 解析CSV: {csv_file.name}")
+            parser = CSVTestCaseParser(csv_file)
+            csv_cases = parser.parse()
+            cases.extend(csv_cases)
+        
+        return cases
     
     def _extract_version(self):
         """提取版本号"""
@@ -525,7 +602,7 @@ class TestPlanGenerator:
 
 def main():
     parser = argparse.ArgumentParser(description='测试计划自动生成器')
-    parser.add_argument('--old-plan', required=True, help='旧版测试计划文件路径')
+    parser.add_argument('--old-plan', required=True, help='旧版测试计划文件路径或目录路径（支持CSV格式）')
     parser.add_argument('--changes', required=True, help='版本变更点（用分号分隔）')
     parser.add_argument('--output', help='输出文件路径')
     parser.add_argument('--format', default='markdown', choices=['markdown', 'json', 'docx'], 

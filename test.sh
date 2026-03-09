@@ -35,6 +35,22 @@ python3 testplan_generator.py \
   --output workspace-dev/reports/testplan_v2.0.0.md
 
 echo ""
+echo "测试4: 使用CSV测试用例文件（新功能）"
+echo "--------------------------------------"
+python3 testplan_generator.py \
+  --old-plan tests/testplan_with_csv.md \
+  --changes "新增会员系统;修复支付超时bug" \
+  --output workspace-dev/reports/testplan_with_csv.md
+
+echo ""
+echo "测试5: 使用目录输入（新功能）"
+echo "--------------------------------------"
+python3 testplan_generator.py \
+  --old-plan tests/ \
+  --changes "新增数据导出功能;优化数据库索引" \
+  --output workspace-dev/reports/testplan_from_dir.md
+
+echo ""
 echo "======================================"
 echo "测试完成！"
 echo "======================================"
@@ -47,3 +63,6 @@ echo "cat workspace-dev/reports/testplan_markdown.md"
 echo ""
 echo "查看JSON输出："
 echo "cat workspace-dev/reports/testplan_json.json"
+echo ""
+echo "查看CSV测试结果："
+echo "cat workspace-dev/reports/testplan_with_csv.md"
